@@ -130,7 +130,7 @@ GetCorrectPrice = function(structParam) -- STRING
       return tostring(math.floor(price))
    end;
 end;
--- Функция определяет какая валюта не торгуется сегодня на рынке из за праздничных  дней
+-- Функция определяет какая валюта не торгуется сегодня на рынке из за праздничных  дней/// Исправить не понятно как работает.
 function ExchangeWeekendCalendar(currcode)-- Код Валюты)
 	local flag = true
 	if currcode == 'USD' then
@@ -280,11 +280,13 @@ local GetTableClient = function()
 	local TableIndexSUR = {}
 	local TableIndexEUR = {}
 	local TableIndexUSD = {}
+	local TableIndexGBP = {} 
 	local TableClientCode = {}
 	local TableIndexMinus = {}
 	TableIndexSUR = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,currentbal) if (tag == 'RTOD') and (currcode == "SUR") and (limit_kind == 0) and (currentbal < 0) then  return true else return false end end,"tag,currcode,limit_kind,currentbal");
 	TableIndexEUR = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,currentbal) if (tag == 'RTOD') and (currcode == "EUR") and (limit_kind == 0) and (currentbal < 0) then  return true else return false end end,"tag,currcode,limit_kind,currentbal");
 	TableIndexUSD = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,currentbal) if (tag == 'RTOD') and (currcode == "USD") and (limit_kind == 0) and (currentbal < 0) then  return true else return false end end,"tag,currcode,limit_kind,currentbal");
+	TableIndexGBP = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,currentbal) if (tag == 'RTOD') and (currcode == "GBP") and (limit_kind == 0) and (currentbal < 0) then  return true else return false end end,"tag,currcode,limit_kind,currentbal");
 	TableIndexMinus = concatenateTables({TableIndexSUR,TableIndexEUR,TableIndexUSD})
 	for j = 1, #TableIndexMinus do
 		ClientCode = getItem("money_limits",TableIndexMinus[j]).client_code
@@ -309,6 +311,12 @@ local GetTableClient = function()
 		local USD = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == 'RTOD') and (currcode == "USD") and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");
 		if USD~= nil then 
 			table.insert(TCarrencis,getItem("money_limits",unpack(USD)))
+		else 
+			table.insert(TCarrencis,0)
+		end
+		local GBP = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == 'RTOD') and (currcode == "GBP") and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");
+		if GBP~= nil then 
+			table.insert(TCarrencis,getItem("money_limits",unpack(GBP)))
 		else 
 			table.insert(TCarrencis,0)
 		end
