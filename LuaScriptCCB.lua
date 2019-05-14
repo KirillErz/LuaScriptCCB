@@ -1,6 +1,6 @@
 
 BET						= 0.08 				-- Ставка 8%
-EXCHANGE_COMMISSION		= 0.000006 			-- Комиссия биржы 0.0006% 
+EXCHANGE_COMMISSION		= 0.000006 			-- Комиссия биржи 0.0006% 
 COUNT_DAY_IN_YEAR		= 365 				-- Количество дней в году
 CLASS_CODE				= 'CNGD'			-- Код класса
 ACCOUNT					= 'MB0005605674'	-- Код счета
@@ -16,19 +16,21 @@ STOP 					= true;				-- Флаг поддержания работы скрип�
 SLEEP 					= 2000				-- Время ожидания Скрипта.
 BufferClient = {};
 TestTable = {}
-PATH_SAVE_LOG = "S:\\boff_exe\\MMVB\\QUIK\\Colibri\\Logs" 		-- Путь сохранения лога
-PATH_SAVE_TRANSACTIONS = "S:\\boff_exe\\MMVB\\QUIK\\Colibri\\Logs"  -- Путь сохранения транзакций
--- Выбор приоритет валют(Меняем Значение в [ ]  от 1 до 2)
+PATH_SAVE_LOG = "C:/LUA/22052018/Log" --"S:\\boff_exe\\MMVB\\QUIK\\Colibri\\Logs" 		-- Путь сохранения лога
+PATH_SAVE_TRANSACTIONS = "C:/LUA/22052018/Log" --"S:\\boff_exe\\MMVB\\QUIK\\Colibri\\Logs"  -- Путь сохранения транзакций
+-- Выбор приоритет валют(Меняем Значение в [ ]  от 1 до 4)
 TableSelectExchange = {
 	[1] = "USD",
 	[2] = "EUR",
-	[3] = "SUR"
+	[3] = "SUR",
+	[4] = "GBP"
 }
 -- Выбор переносимой валюты 
 SelectCurrency = {
 	[1] = "USD",
 	[2] = "EUR",
-	[3] = "SUR"
+	[3] = "SUR",
+	[4] = "GBP"
 }
 function Init()
 	-- Создает папку для логов 
@@ -522,7 +524,27 @@ PriceSwp = function (TableMoneySurUsdEur, -- Выбранная валюта д�
 			if basePrice ~= 0 then
 				local int,double = mysplit(tostring(TableMoneyMinus.currentbal),'.')
 				structParamTransaction.valueMinus = math.abs(int)
-			end			
+			end
+		elseif TableMoneySurUsdEur.currcode == 'GBP' and TableMoneyMinus.currcode == 'SUR' then
+			structParamTransaction[1].BS = 'S'
+			structParamTransaction[1].SB = 'B'
+			betMinusOrPlus = '-'..Bet
+			structParamTransaction.minusCurrcode = 'SUR'
+			structParamTransaction.plusCurrcode = 'GBP'				
+			structParamTransaction.secCodeCurrency = 'GBPRUBTODTOM '  -- Код инструмента
+			local basePrice = tonumber(getParamEx(classCode, structParamTransaction.secCodeCurrency, "BASEPRICE").param_value)
+			if basePrice ~= 0 then
+				Commission = math_round(math.abs(tonumber(TableMoneyMinus.currentbal))*tonumber(EXCHANGE_COMMISSION),4)
+				if Commission > 1.0 then 
+					structParamTransaction.valueMinus = ( math.abs(TableMoneyMinus.currentbal) + Commission)/basePrice
+				else
+					structParamTransaction.valueMinus = ( math.abs(TableMoneyMinus.currentbal) + 1.0)/basePrice
+				end
+			end
+			if basePrice ~= 0 then
+				local number = math.abs(tostring(TableMoneyMinus.currentbal))
+				structParamTransaction.valueMinus=  math.ceil(number)
+			end							
 		else 
 			--f:write('волюта не выбрана'.."\n");
 		end;
