@@ -458,6 +458,24 @@ PriceSwp = function (TableMoneySurUsdEur, -- Выбранная валюта д�
 					structParamTransaction.valueMinus = ( math.abs(TableMoneyMinus.currentbal) + 1.0)/basePrice
 				end
 			end
+		elseif TableMoneySurUsdEur.currcode == 'GBP' and TableMoneyMinus.currcode == 'SUR' then
+			structParamTransaction[1].BS = 'B'
+			structParamTransaction[1].SB = 'S'
+			betMinusOrPlus = '+'..Bet
+			structParamTransaction.minusCurrcode = 'SUR'
+			structParamTransaction.plusCurrcode = 'GBP'			
+			structParamTransaction.secCodeCurrency = 'EUR000TODTOM'  -- Код инструмента GBP
+			local int,double = mysplit(tostring(TableMoneySurUsdEur.currentbal),'.')
+			structParamTransaction.valuePlus  =  int
+			local basePrice = tonumber(getParamEx(classCode, structParamTransaction.secCodeCurrency, "BASEPRICE").param_value)
+			if basePrice ~= 0 then
+				Commission = math_round(math.abs(tonumber(TableMoneyMinus.currentbal))*tonumber(EXCHANGE_COMMISSION),4)
+				if Commission > 1.0 then 
+					structParamTransaction.valueMinus = ( math.abs(TableMoneyMinus.currentbal) + Commission)/basePrice
+				else
+					structParamTransaction.valueMinus = ( math.abs(TableMoneyMinus.currentbal) + 1.0)/basePrice
+				end
+			end
 		elseif TableMoneySurUsdEur.currcode == 'SUR' and TableMoneyMinus.currcode == 'USD' then
 			structParamTransaction[1].BS = 'S'
 			structParamTransaction[1].SB = 'B'
@@ -525,11 +543,11 @@ PriceSwp = function (TableMoneySurUsdEur, -- Выбранная валюта д�
 				local int,double = mysplit(tostring(TableMoneyMinus.currentbal),'.')
 				structParamTransaction.valueMinus = math.abs(int)
 			end
-		elseif TableMoneySurUsdEur.currcode == 'GBP' and TableMoneyMinus.currcode == 'SUR' then
+		elseif TableMoneySurUsdEur.currcode == 'GBP' and TableMoneyMinus.currcode == 'EUR' then
 			structParamTransaction[1].BS = 'S'
 			structParamTransaction[1].SB = 'B'
 			betMinusOrPlus = '-'..Bet
-			structParamTransaction.minusCurrcode = 'SUR'
+			structParamTransaction.minusCurrcode = 'EUR'
 			structParamTransaction.plusCurrcode = 'GBP'				
 			structParamTransaction.secCodeCurrency = 'GBPRUBTODTOM '  -- Код инструмента
 			local basePrice = tonumber(getParamEx(classCode, structParamTransaction.secCodeCurrency, "BASEPRICE").param_value)
