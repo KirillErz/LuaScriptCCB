@@ -20,17 +20,17 @@ PATH_SAVE_LOG = "C:/LUA/22052018/Log" --"S:\\boff_exe\\MMVB\\QUIK\\Colibri\\Logs
 PATH_SAVE_TRANSACTIONS = "C:/LUA/22052018/Log" --"S:\\boff_exe\\MMVB\\QUIK\\Colibri\\Logs"  -- Путь сохранения транзакций
 -- Выбор приоритет валют(Меняем Значение в [ ]  от 1 до 4)
 TableSelectExchange = {
-	[1] = "USD",
+	[4] = "USD",
 	[2] = "EUR",
-	[3] = "SUR",
-	[4] = "GBP"
+	[1] = "SUR",
+	[3] = "GBP"
 }
 -- Выбор переносимой валюты 
-SelectCurrency = {
-	[1] = "USD",
-	[2] = "EUR",
-	[3] = "SUR",
-	[4] = "GBP"
+selectedCurrency = {
+	 "GBP",
+	 "SUR",
+	 "USD",
+	 "EUR"
 }
 function Init()
 	-- Создает папку для логов 
@@ -133,20 +133,34 @@ GetCorrectPrice = function(structParam) -- STRING
    end;
 end;
 -- Функция определяет какая валюта не торгуется сегодня на рынке из за праздничных  дней/// Исправить не понятно как работает.
-function ExchangeWeekendCalendar(currcode)-- Код Валюты)
+function ExchangeWeekendCalendar(currcodePluss,currcodeMinus)-- Код Валюты)
 	local flag = true
-	if currcode == 'USD' then
+	if currcodePluss == 'USD' then
 		secCodeCurrency = 'USD000TODTOM'			
 	end
-	if currcode == 'EUR' then
+	if currcodePluss == 'EUR' then
 		secCodeCurrency = 'EUR000TODTOM'
 	end
-	if currcode == 'SUR' or 0 ~= tonumber(getParamEx('CNGD', secCodeCurrency,'STATUS').param_value)  then	
+	if currcodePluss == 'SUR' then	
+		if currcodeMinus ~= nil then 
+			if currcodeMinus.currcode == GBP then
+				secCodeCurrency = 'GBPRUBTODTOM'
+			else
+				flag = true
+				return flag;
+			end
+		end	
+	end
+	if currcodePluss == 'GBP' then
+		return true;
+	end
+	if secCodeCurrency ~= nil and 0 ~= tonumber(getParamEx('CNGD', secCodeCurrency,'STATUS').param_value) then 
 		flag = true
 	else
-		flag =  false
+		flag = false
 	end
-	ToLog(currcode.." ExchangeWeekendCalendar "..tostring(flag))
+	
+	ToLog(currcodePluss.." ExchangeWeekendCalendar "..tostring(flag)..currcodePluss)
 	return flag
 end
 -- функция поиска
@@ -208,24 +222,28 @@ end
 function CountDayShift(TradeData,SetyleDate)
 ToLog("CountDayShift: "..'TradeData: '..TradeData..';SetyleDate: '..SetyleDate)
 	if TradeData ~= nil and SetyleDate ~= nil then
-		local todayData = { day = 0, month = 0, year = 0}
-		local nextData = { day = 0, month = 0, year = 0}
-		todayData.day,todayData.month,todayData.year = string.match(TradeData,"(%d+).(%d+).(%d+)")
-		ToLog("todayData: "..'day: '..todayData.day..';month: '..todayData.month..';year: '..todayData.year)
-		nextData.day,nextData.month,nextData.year = string.match(SetyleDate,"(%d+).(%d+).(%d+)")-- измененить передачу даты проверять на ноль.
-		local t_Day = os.time{year = todayData.year, month = todayData.month,day = todayData.day}
-		local t_1Day = os.time{year = nextData.year,month = nextData.month,day = nextData.day}
-		local shiftDay = math.abs((t_1Day - t_Day)/360000)		
-		local tempTable = {}
-		for i in string.gmatch(shiftDay, "(%d)") do
-			table.insert(tempTable,i)
-		end
-		shiftD = tonumber(table.concat(tempTable))/24
-		if  shiftD <= 1 then 
-			return 1
+		if(TradeData ~= '' and SetyleDate ~= '') then		
+			local todayData = { day = 0, month = 0, year = 0}
+			local nextData = { day = 0, month = 0, year = 0}
+			todayData.day,todayData.month,todayData.year = string.match(TradeData,"(%d+).(%d+).(%d+)")
+			ToLog("todayData: "..'day: '..todayData.day..';month: '..todayData.month..';year: '..todayData.year)
+			nextData.day,nextData.month,nextData.year = string.match(SetyleDate,"(%d+).(%d+).(%d+)")-- измененить передачу даты проверять на ноль.
+			local t_Day = os.time{year = todayData.year, month = todayData.month,day = todayData.day}
+			local t_1Day = os.time{year = nextData.year,month = nextData.month,day = nextData.day}
+			local shiftDay = math.abs((t_1Day - t_Day)/360000)		
+			local tempTable = {}
+			for i in string.gmatch(shiftDay, "(%d)") do
+				table.insert(tempTable,i)
+			end
+			shiftD = tonumber(table.concat(tempTable))/24
+			if  shiftD <= 1 then 
+				return 1
+			else
+				return shiftD
+			end
 		else
-			return shiftD
-		end
+			message('Ошибка получения даты расчетов',2)
+		end;
 	end
 end
 -- проверка достаточности валюты обмнеа.
@@ -248,10 +266,15 @@ FilterCurrency = function(Currencys)
 	local plusCurrency = nil -- надо вернуть.
 	local flagSelectCurrency = true
 	local flagSelectCurrencyExchange = true
-	for key, value in pairsByKeys(SelectCurrency) do
+	for key, value in pairsByKeys(selectedCurrency) do
+	ToLog("currcodeCount "..#Currencys)
 		if flagSelectCurrency then 
 			for _,currency in ipairs(Currencys) do
+			if currency ~= 0 then 
+					ToLog("currcode1 "..currency.currcode.."  "..value..#Currencys)
+					end
 				if currency ~= 0 and tonumber(currency.currentbal) < 0 and currency.currcode == value then
+					ToLog("currcode "..currency.currcode.."  "..value)
 					minusCurrency = currency
 					ToLog(" FilterCurrency find minus ".." КЛЮЧ "..key..value.." КОД КЛИЕНТА "..minusCurrency.client_code.." ТЕКУЩИЙ ОСТАТОК "..minusCurrency.currentbal.." КОД_ВАЛЮТЫ "..minusCurrency.currcode)-- убрать тест
 					flagSelectCurrency = false
@@ -260,10 +283,16 @@ FilterCurrency = function(Currencys)
 		end
 	end
 	for name, line in pairsByKeys(TableSelectExchange) do
+	ToLog("currcode0.2 "..line)
 		if flagSelectCurrencyExchange then 
 			for k,v in ipairs(Currencys) do
+					if v ~= 0 then 
+					ToLog("currcode2 "..v.currcode.."  "..line)
+					end
 				--FindAray(ExchangeCurrency,v.currcode) and
-				if  v ~= 0 and  v.currcode == line and ExchangeWeekendCalendar(v.currcode) and CheckSuffice(v,minusCurrency) then
+				if  v ~= 0 and  v.currcode == line and ExchangeWeekendCalendar(v.currcode,minusCurrency) and CheckSuffice(v,minusCurrency) then
+					ToLog("ExchangeWeekendCalendar "..tostring(ExchangeWeekendCalendar(v.currcode,minusCurrency)))
+					ToLog("currcode "..v.currcode.."  "..line)
 					plusCurrency = v;
 					ToLog(" FilterCurrency find plus ".." КЛЮЧ "..k.." КОД КЛИЕНТА "..plusCurrency.client_code.." ТЕКУЩИЙ ОСТАТОК "..plusCurrency.currentbal.." КОД_ВАЛЮТЫ "..plusCurrency.currcode)-- убрать тест
 					flagSelectCurrencyExchange = false	
@@ -278,71 +307,71 @@ FilterCurrency = function(Currencys)
 end
 
  -- возвращается таблица (SUR,EUR,USD) если валюты нет то в таблице 0;
-local GetTableClient = function()
+local GetTableClient = function(currencies)
 	local TableSortCarrencis = {}; 
-	local TableIndexSUR = {}
-	local TableIndexEUR = {}
-	local TableIndexUSD = {}
-	local TableIndexGBP = {} 
-	local TableClientCode = {}
-	local TableIndexMinus = {}
-	TableIndexSUR = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,currentbal) if (tag == 'RTOD') and (currcode == "SUR") and (limit_kind == 0) and (currentbal < 0) then  return true else return false end end,"tag,currcode,limit_kind,currentbal");
-	TableIndexEUR = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,currentbal) if (tag == 'RTOD') and (currcode == "EUR") and (limit_kind == 0) and (currentbal < 0) then  return true else return false end end,"tag,currcode,limit_kind,currentbal");
-	TableIndexUSD = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,currentbal) if (tag == 'RTOD') and (currcode == "USD") and (limit_kind == 0) and (currentbal < 0) then  return true else return false end end,"tag,currcode,limit_kind,currentbal");
-	TableIndexGBP = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,currentbal) if (tag == 'RTOD') and (currcode == "GBP") and (limit_kind == 0) and (currentbal < 0) then  return true else return false end end,"tag,currcode,limit_kind,currentbal");
-	TableIndexMinus = concatenateTables({TableIndexSUR,TableIndexEUR,TableIndexUSD,TableIndexGBP})
-	for j = 1, #TableIndexMinus do
-		ClientCode = getItem("money_limits",TableIndexMinus[j]).client_code
-		if FindAray(TableClientCode,ClientCode) then 
-			table.insert(TableClientCode,ClientCode)
-		end 
+	local TableClientCode = {};
+	for key,currency in pairs(currencies) do
+		ToLog("currency _"..currency);
+		local TableIndex = SearchItems("money_limits",0,getNumberOf("money_limits")-1, 
+		function(tag, currcode, limit_kind,currentbal) 
+			if (tag == 'RTOD') and (currcode == currency) and (limit_kind == 0) and (currentbal < 0) then  
+				return true; 
+			else 
+				return false; 
+			end 
+		end,"tag,currcode,limit_kind,currentbal");
+		if TableIndex ~= nil then
+			for j =1, #TableIndex do 
+				ClientCode = getItem("money_limits",TableIndex[j]).client_code;
+				if FindAray(TableClientCode,ClientCode) then 
+					table.insert(TableClientCode,ClientCode);
+				end
+			end 
+		end
 	end
+	local TCarrencis = {}
 	for _,v in pairs(TableClientCode) do
-		local TCarrencis = {}
-		local SUR = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == 'RTOD') and (currcode == "SUR") and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");		
-		if SUR~= nil then
-			table.insert(TCarrencis,getItem("money_limits",unpack(SUR)))		
-		else 
-			table.insert(TCarrencis,0)
+		ToLog("TableClientCode _"..v);		
+		for key,currency in  pairs(currencies) do
+			if key ~= nil and currency ~= nill then
+				ToLog("currencies _"..currency);
+				local optionsCurrency = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == 'RTOD') and (currcode == currency) and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");		
+				if optionsCurrency~= nil then
+					for k,va in pairs(optionsCurrency) do 
+						ToLog("currencies _"..va);
+						local testClient = getItem("money_limits",va).client_code;
+						ToLog("currenciesTestClient _"..testClient);
+					end
+					table.insert(TCarrencis,getItem("money_limits",unpack(optionsCurrency)));			
+				end
+			end
 		end
-		local EUR = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == 'RTOD') and (currcode == "EUR") and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");
-		if EUR~= nil then 
-			table.insert(TCarrencis,getItem("money_limits",unpack(EUR)))
-		else 
-			table.insert(TCarrencis,0)
-		end
-		local USD = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == 'RTOD') and (currcode == "USD") and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");
-		if USD~= nil then 
-			table.insert(TCarrencis,getItem("money_limits",unpack(USD)))
-		else 
-			table.insert(TCarrencis,0)
-		end
-		local GBP = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == 'RTOD') and (currcode == "GBP") and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");
-		if GBP~= nil then 
-			table.insert(TCarrencis,getItem("money_limits",unpack(GBP)))
-		else 
-			table.insert(TCarrencis,0)
-		end
-		 TableSortCarrencis[tostring(v)] = TCarrencis
+		ToLog("TableSortCarrencisArr_ "..tostring(v))
+		--table.insert(TableSortCarrencis,TCarrencis)
+		--TableSortCarrencis[tostring(v)] = TCarrencis
 	end
-	for key, val in pairs(TableSortCarrencis)  do
-		for k,v in ipairs(val) do
-			if v~=0 then		
-				ToLog(" GetTableClient ".." КЛЮЧ "..key.." КОД КЛИЕНТА "..v.client_code.." ТЕКУЩИЙ ОСТАТОК "..v.currentbal.." КОД_ВАЛЮТЫ "..v.currcode)-- убрать тест
-			end				
-		end
+	for _,v in ipairs(TCarrencis) do
+		ToLog("TableSortCarrencis_ "..v.client_code)
 	end
-	
-	return TableSortCarrencis
+	-- for key,val in pairs(TableSortCarrencis) do
+		-- if val~=0 then	
+			-- for _,v in ipairs(val) do
+				-- ToLog("TableSortCarrencis_ "..v.client_code)
+			-- end
+		-- end
+	-- end
+	return TCarrencis;
 	
 end	
 -- получить значение из таблици TestTable
 GetValueMoneyLimit = function(key,Table)
+	local tableLimitClient = {}
 	for k, val in pairs(Table)  do
-		if tostring(k) == tostring(key) then
-			return val
+		if tostring(val.client_code) == tostring(key) then
+			table.insert(tableLimitClient,val);
 		end 
 	end
+	return tableLimitClient;
 end
 --проверка значиений в таблице отрицательного текущего остатка
 CheckminusCurrency = function(Table)
@@ -359,14 +388,22 @@ function main()
 	while STOP do
 		Init()
 		ToLog("START_SCRIPT")
-		TestTable = GetTableClient()
+		--cashLimitTable
+		TestTable = GetTableClient(selectedCurrency)
+		--логирование 
+		for k,v in ipairs(TestTable) do
+			if v~=0 then		
+				ToLog(" GetTableClient ".." КЛЮЧ "..k.." КОД КЛИЕНТА "..v.client_code.." ТЕКУЩИЙ ОСТАТОК "..v.currentbal.." КОД_ВАЛЮТЫ "..v.currcode)-- убрать тест
+			end				
+		end	
+		---------------------------------------------------
 		for key, val in pairs(TestTable)  do
-			ToLog("NEXT_№ "..key.."\n")-- убрать тест
+			ToLog("NEXT_№ "..val.client_code.."\n")-- убрать тест
 			local minusCurrency = nil
 			local plusCurrency = nil		
 			repeat
-				ToLog("IN  REPEAT "..key.."\n")-- убрать тест
-				local MoneyLimit = GetValueMoneyLimit(key,TestTable)
+				ToLog("IN  REPEAT "..val.client_code.."\n")-- убрать тест
+				local MoneyLimit = GetValueMoneyLimit(val.client_code,TestTable)
 				for k, v in pairs(MoneyLimit)  do
 					if v ~= 0  then 
 						ToLog(" GetValueMoneyLimit ".." КЛЮЧ "..key.." КОД КЛИЕНТА "..v.client_code.." ТЕКУЩИЙ ОСТАТОК "..v.currentbal.." КОД_ВАЛЮТЫ "..v.currcode.."\n")-- убрать тест
@@ -408,7 +445,7 @@ PriceSwp = function (TableMoneySurUsdEur, -- Выбранная валюта д�
 )
 	local 	classCode  = 'CNGD'   	   -- Код класса
 	local 	structParamTransaction = {
-			isToolOperation = false,
+			isToolOperation = false, -- нет такого интсрумента
 			clientCode = '',		-- Код клиента
 			priseSwp  = 0,			-- Цена свопа
 			baseCurrency = 0,		-- Базовый курс
@@ -564,8 +601,9 @@ PriceSwp = function (TableMoneySurUsdEur, -- Выбранная валюта д�
 			structParamTransaction[1].BS = 'B'
 			structParamTransaction[1].SB = 'S'
 			betMinusOrPlus = '-'..Bet
-			structParamTransaction.minusCurrcode = 'USD'
-			structParamTransaction.plusCurrcode = 'GBP'			
+			structParamTransaction.minusCurrcode = 'USD';
+			structParamTransaction.plusCurrcode = 'GBP';
+			structParamTransaction.isToolOperation = true;			
 			structParamTransaction.secCodeCurrency = 'GBPUSDTODTOM'  -- Код инструмента
 			local priceUsd = tonumber(getParamEx(classCode, 'EURUSDTODTOM', "BASEPRICE").param_value)
 			local priceGbp = tonumber(getParamEx(classCode, 'GBPUSDTODTOM', "BASEPRICE").param_value)	
@@ -641,8 +679,11 @@ PriceSwp = function (TableMoneySurUsdEur, -- Выбранная валюта д�
 	if structParamTransaction.secCodeCurrency ~= '' then
 		local basePrice = tonumber(getParamEx(classCode, structParamTransaction.secCodeCurrency, "BASEPRICE").param_value)	
 		structParamTransaction.baseCurrency  = tonumber(getParamEx(classCode, structParamTransaction.secCodeCurrency, "BASEPRICE").param_value) -- Рассчитывается базовый курс валюты
+		
 		local tradeData = getParamEx(classCode, structParamTransaction.secCodeCurrency,'TRADE_DATE_CODE').param_image
 		local setyleDate = getParamEx(classCode, structParamTransaction.secCodeCurrency,'SETTLEDATE').param_image
+		
+		ToLog("CountDayShift "..structParamTransaction.secCodeCurrency)
 		structParamTransaction.priseSwp  = tonumber(structParamTransaction.baseCurrency)*betMinusOrPlus/CountDayInYear*CountDayShift(tradeData,setyleDate) -- Рассчитывается цена свопа сделать функцию 
 		structParamTransaction.currentValueWithCommission = math_round(math.abs(tonumber(TableMoneyMinus.currentbal))*tonumber(EXCHANGE_COMMISSION),4) -- Комиссия биржи ц полученной цены в рублях
 		ToLog(tostring('SECCODE'..'='..structParamTransaction.secCodeCurrency..";"..'BASEPRICE'..'='..structParamTransaction.baseCurrency..";"..'PRICE'..'='..structParamTransaction.priseSwp..";"..'CURRENCY_MINUS'..'='..structParamTransaction.valueMinus..";"..";"..'CURRCODE_MINUS'..'='..structParamTransaction.minusCurrcode..";"..'CURRENCY_PLUS'..'='..structParamTransaction.valuePlus..' NOT CEIL '..TableMoneySurUsdEur.currentbal/basePrice..";"..'CURRCODE_PLUS'..'='..structParamTransaction.plusCurrcode..";"..'COMMISSION'..'='..structParamTransaction.currentValueWithCommission..";"..'BANKBET'..'='..betMinusOrPlus..";"..'COUNTDAYSHIFT'..'='..shiftD.."\n"));	
@@ -669,7 +710,7 @@ TransferOfPositionsCurrency = function(structParam)
 				if SetOrder(structParam,structParam[1].BS,countLots,structParam.clientCode) == '' then
 					SetOrder(structParam,structParam[1].SB,countLots,CLIENTCODE)
 				else
-					message('Error to open/close transaction:',2)
+					message('Error to open/close transaction:',3)
 				end
 			else 
 				ToLog("CURRENTBAL DONER"..":"..tostring(moneyDonarClient.currentbal).." ".."Error, donors balance less".." "..structParam.clientCode);
@@ -683,7 +724,7 @@ TransferOfPositionsCurrency = function(structParam)
 				if SetOrder(structParam,structParam[1].BS,structParam.valuePlus,structParam.clientCode) == '' then  		-- Продажа всего USD т.к минус SUR больше чем наличие валюты USD 
 					SetOrder(structParam,structParam[1].SB,structParam.valuePlus,CLIENTCODE)
 				else
-					message('Error to open/close transaction:',2)
+					message('Error to open/close transaction:',3)
 				end
 			else
 				ToLog("CURRENTBAL DONER"..":"..tostring(moneyDonarClient.currentbal).." ".."Error, donors balance less".." "..structParam.clientCode);
@@ -699,7 +740,7 @@ TransferOfPositionsCurrency = function(structParam)
 				ToLog("Proverca USLOVIYA(TransferOfPositionsCurrency) "..structParam.valuePlus)-- убрать тест!!!!!!!!!!!!!!!!!!!!!!!!!
 					SetOrder(structParam,structParam[1].SB,structParam.valueMinus,CLIENTCODE)
 				else
-					message('Error to open/close transaction:',2)
+					message('Error to open/close transaction:',3)
 				end
 			else 
 				ToLog("CURRENTBAL DONER"..":"..tostring(moneyDonarClient.currentbal).." ".."Error, donors balance less".." "..structParam.clientCode);
@@ -714,7 +755,7 @@ TransferOfPositionsCurrency = function(structParam)
 								-- Продажа всего USD т.к минус SUR больше чем наличие валюты USD 
 					SetOrder(structParam,structParam[1].SB,structParam.valuePlus,CLIENTCODE)
 				else
-					message('Error to open/close transaction:',2)
+					message('Error to open/close transaction:',3)
 				end
 			else
 				ToLog("CURRENTBAL DONER"..":"..tostring(moneyDonarClient.currentbal).." ".."Error, donors balance less".." "..structParam.clientCode);
@@ -732,50 +773,46 @@ if Param.minusCurrcode == 'USD' and Param.isToolOperation ~= true  then
 	if Param.plusCurrcode == 'SUR' or Param.plusCurrcode == 'EUR' or Param.plusCurrcode == 'GBP'  then 
 		 if T.OPERATION == 'B' then 
 			for key,currencys in pairs(TestTable)  do
-				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
-					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == Param.minusCurrcode and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction_buy "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
+				ToLog(tostring(key).." TEST KEY 1 "..currencys.client_code)
+				if currencys.client_code == Param.clientCode then
+					ToLog(tostring(key).." TEST KEY IN"..Param.clientCode)			
+						if currencys ~= 0 and currencys.currcode == Param.minusCurrcode and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction_buy "..' TOTAL_BEFORE '..TestTable[key].currentbal)
 							if Param.plusCurrcode == 'SUR' then
-								TestTable[key][k].currentbal = currency.currentbal + tonumber(T.QUANTITY)
+								TestTable[key].currentbal = currencys.currentbal + tonumber(T.QUANTITY)
 							elseif Param.plusCurrcode == 'GBP' then
 								local int,double = mysplit(tostring(T.QUANTITY*T.BASECURRENCY),'.')
-								TestTable[key][k].currentbal = currency.currentbal + tonumber(int)
+								TestTable[key].currentbal = currencys.currentbal + tonumber(int)
 							else 
 								local int,double = mysplit(tostring(T.QUANTITY*T.BASECURRENCY),'.')
-								TestTable[key][k].currentbal = currency.currentbal + tonumber(int)
+								TestTable[key].currentbal = currencys.currentbal + tonumber(int)
 							end
-							ToLog(" CalculationTransaction1 "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal + tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+							ToLog(" CalculationTransaction1 "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal + tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
 				end		
 			end
 		elseif T.OPERATION == 'S' then
 			for key,currencys in pairs(TestTable)  do
-				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
-					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == Param.plusCurrcode and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction_sale "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
+				ToLog(tostring(key).." TEST KEY 2 "..currencys.client_code)
+				if currencys.client_code == Param.clientCode then
+					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)			
+						if currencys ~= 0 and currencys.currcode == Param.plusCurrcode and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction_sale "..' TOTAL_BEFORE '..TestTable[key].currentbal)
 							local number = nil;
 							if Param.plusCurrcode == 'GBP' then 
 								number = tonumber(T.QUANTITY)
 							else
 								number = (tonumber(T.QUANTITY)*tonumber(T.BASECURRENCY))
 							end
-							if number >=  currency.currentbal then 
-								TestTable[key][k].currentbal = currency.currentbal - currency.currentbal
+							if number >=  currencys.currentbal then 
+								TestTable[key].currentbal = currencys.currentbal - currencys.currentbal
 							else
-								TestTable[key][k].currentbal = currency.currentbal - number
+								TestTable[key].currentbal = currencys.currentbal - number
 							end						
-							ToLog(" CalculationTransaction1 "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal..'+'.. tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+							ToLog(" CalculationTransaction1 "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal..'+'.. tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
 				end		
 			end
 		else 
@@ -787,76 +824,76 @@ elseif Param.minusCurrcode == 'SUR' and Param.isToolOperation ~= true then
 		if T.OPERATION == 'B' then 
 			for key,currencys in pairs(TestTable)  do
 				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
+				if currencys.client_code == Param.clientCode then
 					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == Param.minusCurrcode and Param.clientCode == currency.client_code then
+					--for k,currency in ipairs(currencys) do				
+						if currencys ~= 0 and currencys.currcode == Param.minusCurrcode and Param.clientCode == currencys.client_code then
 							ToLog(" CalculationTransaction_buy "..' TOTAL_BEFORE '..-(tonumber(Param.valueMinus)*tonumber(T.BASECURRENCY)))
-							TestTable[key][k].currentbal = (currency.currentbal - Param.currentValueWithCommission)  + (tonumber(T.QUANTITY)*tonumber(T.BASECURRENCY))
-							ToLog(" CalculationTransaction "..(tonumber(Param.valueMinus)*tonumber(T.BASECURRENCY)).." = valueMinus"..Param.valuePlus.." = valuePlus"..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+							TestTable[key].currentbal = (currencys.currentbal - Param.currentValueWithCommission)  + (tonumber(T.QUANTITY)*tonumber(T.BASECURRENCY))
+							ToLog(" CalculationTransaction "..(tonumber(Param.valueMinus)*tonumber(T.BASECURRENCY)).." = valueMinus"..Param.valuePlus.." = valuePlus"..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
+					--end
 				end		
 			end
 		elseif T.OPERATION == 'S' then
 			for key,currencys in pairs(TestTable)  do
 				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
+				if currencys.client_code == Param.clientCode then
 					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == Param.plusCurrcode and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction_sale "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
-							TestTable[key][k].currentbal = currency.currentbal - tonumber(T.QUANTITY)
-							ToLog(" CalculationTransaction "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal + tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+					--for k,currency in ipairs(currencys) do				
+						if currencys ~= 0 and currencys.currcode == Param.plusCurrcode and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction_sale "..' TOTAL_BEFORE '..TestTable[key].currentbal)
+							TestTable[key].currentbal = currencys.currentbal - tonumber(T.QUANTITY)
+							ToLog(" CalculationTransaction "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal + tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
+					--end
 				end		
 			end
 		else 
 			return 'error Transaction'
 		end
 	end
-elseif Param.minusCurrcode == 'EUR' and Param.isToolOperation ~= true then 
+elseif Param.minusCurrcode == 'EUR' then -------------------------------------------------------------------------------------------
 	if Param.plusCurrcode == 'USD' or Param.plusCurrcode == 'SUR' then
 		if T.OPERATION == 'B' then 
 			for key,currencys in pairs(TestTable)  do
 				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
+				if currencys.client_code == Param.clientCode then
 					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == Param.minusCurrcode and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction2 "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
-							TestTable[key][k].currentbal = currency.currentbal + tonumber(T.QUANTITY)
-							ToLog(" CalculationTransaction2 "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal + tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+					--for k,currency in ipairs(currencys) do				
+						if currencys ~= 0 and currencys.currcode == Param.minusCurrcode and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction2 "..' TOTAL_BEFORE '..TestTable[key].currentbal)
+							TestTable[key].currentbal = currencys.currentbal + tonumber(T.QUANTITY)
+							ToLog(" CalculationTransaction2 "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal + tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
+					--end
 				end		
 			end
 		elseif T.OPERATION == 'S' then
 			for key,currencys in pairs(TestTable)  do
 				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
+				if currencys.client_code == Param.clientCode then
 					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == Param.plusCurrcode and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction2 "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
+					--for k,currency in ipairs(currencys) do				
+						if currencys ~= 0 and currencys.currcode == Param.plusCurrcode and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction2 "..' TOTAL_BEFORE '..TestTable[key].currentbal)
 							if Param.plusCurrcode == 'USD' then
 								local number = tonumber(T.QUANTITY)*tonumber(T.BASECURRENCY)
-								if number >  currency.currentbal then 
-									TestTable[key][k].currentbal = currency.currentbal - currency.currentbal
+								if number >  currencys.currentbal then 
+									TestTable[key].currentbal = currencys.currentbal - currencys.currentbal
 								else
-									TestTable[key][k].currentbal = currency.currentbal - number
+									TestTable[key].currentbal = currencys.currentbal - number
 								end
 							else
-								TestTable[key][k].currentbal = currency.currentbal - (tonumber(T.QUANTITY)*tonumber(T.BASECURRENCY))
+								TestTable[key].currentbal = currencys.currentbal - (tonumber(T.QUANTITY)*tonumber(T.BASECURRENCY))
 							end
-							ToLog(" CalculationTransaction2 "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal..tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+							ToLog(" CalculationTransaction2 "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal..tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
+					--end
 				end		
 			end
 		else 
@@ -868,40 +905,40 @@ elseif Param.minusCurrcode == 'GBP' and Param.isToolOperation ~= true  then
 		 if T.OPERATION == 'B' then 
 			for key,currencys in pairs(TestTable)  do
 				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
+				if currencys.client_code == Param.clientCode then
 					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == Param.minusCurrcode and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction_buy "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
+					--for k,currency in ipairs(currencys) do				
+						if currencys ~= 0 and currencys.currcode == Param.minusCurrcode and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction_buy "..' TOTAL_BEFORE '..TestTable[key].currentbal)
 							if Param.plusCurrcode == 'SUR' then
-								TestTable[key][k].currentbal = currency.currentbal + tonumber(T.QUANTITY)
+								TestTable[key].currentbal = currencys.currentbal + tonumber(T.QUANTITY)
 							elseif Param.plusCurrcode == 'USD' then
-								TestTable[key][k].currentbal = currency.currentbal + tonumber(T.QUANTITY)
+								TestTable[key].currentbal = currencys.currentbal + tonumber(T.QUANTITY)
 							end
-							ToLog(" CalculationTransactionGBP "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal..'+'.. tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+							ToLog(" CalculationTransactionGBP "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal..'+'.. tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
+					--end
 				end		
 			end
 		elseif T.OPERATION == 'S' then
 			for key,currencys in pairs(TestTable)  do
 				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
+				if currencys.client_code == Param.clientCode then
 					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == Param.plusCurrcode and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction_sale "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
+					--for k,currency in ipairs(currencys) do				
+						if currencys ~= 0 and currencys.currcode == Param.plusCurrcode and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction_sale "..' TOTAL_BEFORE '..TestTable[key].currentbal)
 							local number = (tonumber(T.QUANTITY)*tonumber(T.BASECURRENCY))
-							if number >=  currency.currentbal then 
-								TestTable[key][k].currentbal = currency.currentbal - currency.currentbal
+							if number >=  currencys.currentbal then 
+								TestTable[key].currentbal = currencys.currentbal - currencys.currentbal
 							else
-								TestTable[key][k].currentbal = currency.currentbal - number
+								TestTable[key].currentbal = currencys.currentbal - number
 							end						
-							ToLog(" CalculationTransactionGBP "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal + tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+							ToLog(" CalculationTransactionGBP "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal + tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
+					--end
 				end		
 			end
 		else 
@@ -912,11 +949,11 @@ elseif Param.isToolOperation == true then
  		if T.OPERATION == 'B' then 
 			for key,currencys in pairs(TestTable)  do
 				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
+				if currencys.client_code == Param.clientCode then
 					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do				
-						if currency ~= 0 and currency.currcode == "USD" and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction_buy "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
+					--for k,currency in ipairs(currencys) do				
+						if currencys ~= 0 and currencys.currcode == "USD" and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction_buy "..' TOTAL_BEFORE '..TestTable[key].currentbal)
 							-- if Param.plusCurrcode == 'EUR' then
 								-- TestTable[key][k].currentbal = currency.currentbal + tonumber(T.QUANTITY)
 								-- ToLog(" EUR_GBP "..' TOTAL_BEFORE '..currency.currentbal)
@@ -929,23 +966,23 @@ elseif Param.isToolOperation == true then
 								-- local int,double = mysplit(tostring(T.QUANTITY/T.BASECURRENCY),'.')
 								-- TestTable[key][k].currentbal = currency.currentbal + tonumber(int)
 							-- end
-							ToLog(" ELSE "..' TOTAL_BEFORE '..currency.currentbal)							
+							ToLog(" ELSE "..' TOTAL_BEFORE '..currencys.currentbal)							
 							local int,double = mysplit(tostring(T.QUANTITY*T.BASECURRENCY),'.')
-							TestTable[key][k].currentbal = currency.currentbal + tonumber(int)
-							ToLog(" CalculationTransaction_EUR_GBP "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal..'+'..tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+							TestTable[key].currentbal = currencys.currentbal + tonumber(int)
+							ToLog(" CalculationTransaction_EUR_GBP "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal..'+'..tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
+					--end
 				end		
 			end
 		elseif T.OPERATION == 'S' then
 			for key,currencys in pairs(TestTable)  do
 				ToLog(tostring(key).." TEST KEY")
-				if key == Param.clientCode then
+				if currencys.client_code == Param.clientCode then
 					ToLog(tostring(key).." TEST KEY IN"  ..Param.clientCode)
-					for k,currency in ipairs(currencys) do										
-						if currency ~= 0 and currency.currcode == Param.plusCurrcode and Param.clientCode == currency.client_code then
-							ToLog(" CalculationTransaction_sale "..' TOTAL_BEFORE '..TestTable[key][k].currentbal)
+					--for k,currency in ipairs(currencys) do										
+						if currencys ~= 0 and currencys.currcode == Param.plusCurrcode and Param.clientCode == currencys.client_code then
+							ToLog(" CalculationTransaction_sale "..' TOTAL_BEFORE '..TestTable[key].currentbal)
 							
 							local number = nil;
 							-- if Param.plusCurrcode == 'GBP' then 
@@ -955,16 +992,16 @@ elseif Param.isToolOperation == true then
 							-- end
 							--number = (tonumber(T.QUANTITY)/tonumber(T.BASECURRENCY))
 							number = tonumber(T.QUANTITY)
-							ToLog(" CalculationTransaction_sale_EUR_GBP "..' currentbal '..currency.currentbal.." "..number)	
-							if number >=  currency.currentbal then 
-								TestTable[key][k].currentbal = currency.currentbal - currency.currentbal
+							ToLog(" CalculationTransaction_sale_EUR_GBP "..' currentbal '..currencys.currentbal.." "..number)	
+							if number >=  currencys.currentbal then 
+								TestTable[key].currentbal = currencys.currentbal - currencys.currentbal
 							else
-								TestTable[key][k].currentbal = currency.currentbal - number
+								TestTable[key].currentbal = currencys.currentbal - number
 							end						
-							ToLog(" CalculationTransaction_EUR_GBP "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currency.currentbal..'+'.. tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key][k].currentbal..' QUANTITY '..T.QUANTITY)
+							ToLog(" CalculationTransaction_EUR_GBP "..Param.minusCurrcode..' OR '..Param.plusCurrcode..' SUM '..currencys.currentbal..'+'.. tonumber(T.QUANTITY)..' TOTAL_AFTER '..TestTable[key].currentbal..' QUANTITY '..T.QUANTITY)
 							return ''
 						end
-					end
+					--end
 				end		
 			end
 		else 
