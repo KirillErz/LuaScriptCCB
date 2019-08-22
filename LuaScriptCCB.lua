@@ -31,7 +31,10 @@ selectedCurrency = {
 	 "SUR",
 	 "USD",
 	 "EUR"
-}
+}   
+
+
+
 function Init()
 	-- Создает папку для логов 
 		pathSaveLog = PATH_SAVE_LOG
