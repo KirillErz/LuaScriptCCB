@@ -14,6 +14,7 @@ FLAFRES					= ''				-- Флаг транзакции если пусто, то �
 START 					= false				-- Флаг поддержания работы скрипта*
 STOP 					= true;				-- Флаг поддержания работы скрипта*
 SLEEP 					= 2000				-- Время ожидания Скрипта.
+idPocket 			    = 0  				-- id кармана донара/клиента
 BufferClient = {};
 TestTable = {}
 PATH_SAVE_LOG = "C:/LUA/22052018/Log" --"S:\\boff_exe\\MMVB\\QUIK\\Colibri\\Logs" 		-- Путь сохранения лога
@@ -78,17 +79,18 @@ end;
 --- тестовый вариант записи в файл.
 function PocketInit(name)
 	local pathSaveTransaction = PATH_SAVE_TRANSACTIONS
-	local TIME_CREATE_POCKET = os.date("%Y-%m-%d-%H-%M")
+	local TIME_CREATE_POCKET = os.date("%Y-%m-%d-%H")
+	
    -- Пытается открыть лог-файл в режиме "чтения/записи"
-	Pocket = io.open(pathSaveTransaction.."//"..TIME_CREATE_POCKET..'_'..name..".tri","r+");
+	Pocket = io.open(pathSaveTransaction.."//"..TIME_CREATE_POCKET..'_'..name..'_'..'id'..idPocket..".tri","r+");
    -- Если файл не существует
    if Pocket == nil then 
       -- Создает файл в режиме "записи"
-      Pocket = io.open(pathSaveTransaction.."//"..TIME_CREATE_POCKET..'_'..name..".tri","w"); 
+      Pocket = io.open(pathSaveTransaction.."//"..TIME_CREATE_POCKET..'_'..name..'_'..'id'..idPocket..".tri","w"); 
       -- Закрывает файл
       Pocket:close();
       -- Открывает уже существующий файл в режиме "чтения/записи"
-      Pocket = io.open(pathSaveTransaction.."//"..TIME_CREATE_POCKET..'_'..name..".tri","r+");
+      Pocket = io.open(pathSaveTransaction.."//"..TIME_CREATE_POCKET..'_'..name..'_'..'id'..idPocket..".tri","r+");
    end; 
    -- Встает в конец файла
    Pocket:seek("end",0);
@@ -189,6 +191,13 @@ function mysplit(inputstr, sep)
         end
         return t[1],t[2]
 end
+-- генератор случайных чисел. 
+function random()
+	math.randomseed( os.time() );
+	local doubleRandom  = math.random();
+	local int, double = mysplit(doubleRandom, '.');
+	return double;
+  end
 -- возвращается таблица кокантенированных значений
 concatenateTables = function(Table)
 	local IndexMinus = {}
@@ -387,7 +396,8 @@ CheckminusCurrency = function(Table)
 	return flag
 end 
 ---ГЛАВНАЯ ФУНКЦИЯ.	------------------
-function main()	
+function main()
+	idPocket = random();	
 	while STOP do
 		Init()
 		ToLog("START_SCRIPT")
@@ -412,7 +422,16 @@ function main()
 						ToLog(" GetValueMoneyLimit ".." КЛЮЧ "..key.." КОД КЛИЕНТА "..v.client_code.." ТЕКУЩИЙ ОСТАТОК "..v.currentbal.." КОД_ВАЛЮТЫ "..v.currcode.."\n")-- убрать тест
 					end
 				end
-				ToLog("NEXT_IN FilterCurrency".."\n")-- убрать тест				
+				ToLog("NEXT_IN FilterCurrency".."\n")-- убрать тест
+				if plusCurrency ~= nil then 
+					for k, v in pairs(MoneyLimit) do
+						if  v ~= 0 and  v.currcode == plusCurrency.currcode then
+							table.remove(MoneyLimit,k)
+							ToLog('removeMoneyLimit'..k)
+							break;
+						end						 
+					end
+				end
 				minusCurrency,plusCurrency= FilterCurrency(MoneyLimit)
 				local structParam = nil				
 				if plusCurrency ~= 0 and minusCurrency ~= 0 then 
