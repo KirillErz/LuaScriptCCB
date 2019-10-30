@@ -3,12 +3,12 @@ BET						= 0.08 				-- Ставка 8%
 EXCHANGE_COMMISSION		= 0.000006 			-- Комиссия биржи 0.0006% 
 COUNT_DAY_IN_YEAR		= 365 				-- Количество дней в году
 CLASS_CODE				= 'CNGD'			-- Код класса
-ACCOUNT					= 'MB0005605674'	-- Код счета
-ACCOUNT_DEPO		    = 'MB0005608694'	-- Код счета MB0005605674 MB0005608694
+ACCOUNT					= 'MB0005605674'	-- Код счета Донора 
+ACCOUNT_DEPO		    = 'MB0005608694'	-- Код счета ДЕПО MB0005605674 MB0005608694
 PARTNER					= 'MC0005600000'	-- Код организации – партнера по РПС сделке 
 SETTLE_CODE				= 'T1'				-- Код расчетов при исполнении внебиржевых заявок
 TAG						= 'L'				-- ('L' - лимитированная, 'M' - рыночная)
-TAG_CURRENCYS			=  'EQTV'			-- Код класса для переноса (Код EQTV (у обычных клиентов RTOD))
+TAG_CURRENCYS			= 'EQTV'			-- Код класса для переноса (Код EQTV (у обычных клиентов RTOD))
 TRANSACTION_TYPE		= 'NEW_NEG_DEAL'	-- Тип транзакции РПС сделка не редактировать
 CLIENTCODE				= '12345'			-- Код клиента(донора)
 trans_id				= os.time()			-- ID транзакции*
@@ -165,9 +165,7 @@ function ExchangeWeekendCalendar(currcodePluss,currcodeMinus)-- Код Валю�
 		flag = true
 	else
 		flag = false
-	end
-	
-	ToLog(currcodePluss.." ExchangeWeekendCalendar "..tostring(flag)..currcodePluss)
+	end	
 	return flag
 end
 -- функция поиска
@@ -281,7 +279,6 @@ FilterCurrency = function(Currencys)
 	local flagSelectCurrency = true
 	local flagSelectCurrencyExchange = true
 	for key, value in pairsByKeys(selectedCurrency) do
-	ToLog("currcodeCount "..#Currencys)
 		if flagSelectCurrency then 
 			for _,currency in ipairs(Currencys) do
 			if currency ~= 0 then 
@@ -297,13 +294,8 @@ FilterCurrency = function(Currencys)
 		end
 	end
 	for name, line in pairsByKeys(TableSelectExchange) do
-	ToLog("currcode0.2 "..line)
 		if flagSelectCurrencyExchange then 
-			for k,v in ipairs(Currencys) do
-					if v ~= 0 then 
-					ToLog("currcode2 "..v.currcode.."  "..line)
-					end
-				--FindAray(ExchangeCurrency,v.currcode) and
+			for k,v in ipairs(Currencys) do				
 				if  v ~= 0 and  v.currcode == line and ExchangeWeekendCalendar(v.currcode,minusCurrency) and CheckSuffice(v,minusCurrency) then
 					ToLog("ExchangeWeekendCalendar "..tostring(ExchangeWeekendCalendar(v.currcode,minusCurrency)))
 					ToLog("currcode "..v.currcode.."  "..line)
@@ -321,12 +313,10 @@ FilterCurrency = function(Currencys)
 end
 
 -- фнкция для получения данных из таблицы лимиты по бумагам.
-local getLimitsTableDepo = function(depo,client)            
+local getLimitsTableDepo = function(depo,client) -- возвращает таблицу лимитов по бумагам  с индексами элементов, удовлетворяющих условию поиска.            
 	local TableIndexLimitsTableDepo = SearchItems("depo_limits",0,getNumberOf("depo_limits")-1, 
 	function(trdaccid,client_code)
-		ToLog("Trdaccid: "..trdaccid.." "..depo.."Client_code: "..client_code.." "..client)
-		if (trdaccid == depo) and (client_code == client) then
-			ToLog("Trdaccid: "..trdaccid.."Client_code: "..client_code)   
+		if (trdaccid == depo) and (client_code == client) then 
 			return true; 
 		else 
 			return false; 
@@ -341,7 +331,6 @@ local GetTableClient = function(currencies)
 	local TableSortCarrencis = {}; 
 	local TableClientCode = {};
 	for key,currency in pairs(currencies) do
-		ToLog("currency _"..currency);
 		local TableIndex = SearchItems("money_limits",0,getNumberOf("money_limits")-1, 
 		function(tag, currcode, limit_kind,currentbal,client_code)
 			if (tag == "EQTV" and tag == TAG_CURRENCYS and currcode == currency and limit_kind == 0 and currentbal < 0) then
@@ -386,10 +375,7 @@ local GetTableClient = function(currencies)
 				end
 			end
 		end
-		ToLog("TableSortCarrencisArr_ "..tostring(v))
-		--table.insert(TableSortCarrencis,TCarrencis)
-		--TableSortCarrencis[tostring(v)] = TCarrencis
-	end
+		ToLog("TableSortCarrencisArr_ "..tostring(v))		
 	for _,v in ipairs(TCarrencis) do
 		ToLog("TableSortCarrencis_ "..v.client_code)
 	end
@@ -1059,11 +1045,16 @@ elseif Param.isToolOperation == true then
 		end
 	end 
 end
-
-chooseAccount = function(clientCode, donor,tagCurrencys,account)
+-- Смена счет в заявке. Если группа “EQTV” то у клиента меняется счет на DEPO (который выставляется в настройках ACCOUNT_DEPO)  у донора счет остается прежним.
+--	clientCode Имя клиента 
+--	donor	Имя донора 
+--	tagCurrencys	Название группы
+-- 	account	Счет 
+-- 	accountDepo Счет клиенто ДЕПО
+chooseAccount = function(clientCode, donor,tagCurrencys,account,accountDepo)
 	local selectedAccount  = '';
 	if tagCurrencys == "EQTV" and clientCode ~= donor..'/SW' then 
-		selectedAccount = ACCOUNT_DEPO;
+		selectedAccount = accountDepo;
 	else
 		selectedAccount = account;
 	end; 
@@ -1073,7 +1064,7 @@ end;
 -- Запись транзакции.
 Transaction = function(T,Param)
 	local propertiTransaction = '';
-	local account = chooseAccount(T.CLIENT_CODE,CLIENTCODE,TAG_CURRENCYS,T.ACCOUNT);
+	local account = chooseAccount(T.CLIENT_CODE,CLIENTCODE,TAG_CURRENCYS,T.ACCOUNT,ACCOUNT_DEPO);
 	if T.OPERATION == 'B' then 
 		propertiTransaction = tostring('TRANS_ID'.."="..T.TRANS_ID..";"..'CLASSCODE'.."="..T.CLASSCODE..";"..'ACTION'.."="..'Ввод адресной заявки'..";"..'Торговый счет'.."="..account..";"..'К/П'.."=".."Купля"..";"..'Режим'.."="..T.CLASSCODE..";"..'Инструмент'.."="..T.SECCODE..";"..'Контрагент'.."=".."MC0005600000"..";"..'Цена'.."="..T.PRICE..";"..'Лоты'.."="..T.QUANTITY..";"..'Примечание'.."="..T.CLIENT_CODE..";"..'Код расчетов'.."="..'T1'..";"..'Базовый курс'.."="..T.BASECURRENCY.."\n")			
 	else	
