@@ -1,0 +1,11 @@
+8-10-2019 10:19:19.tradeDataUsd: 08.10.2019setyleDateUsd: 09.10.2019
+8-10-2019 10:19:19.tradeDataEur: 08.10.2019setyleDateEur: 09.10.2019
+8-10-2019 10:19:19.tradeDataGbp: setyleDateGbp: 
+8-10-2019 10:19:19.tradeDataEurUsd: 08.10.2019setyleDateEurUsd: 09.10.2019
+8-10-2019 10:19:19.tradeDataGbpUsd: setyleDateGbpUsd: 
+8-10-2019 10:19:22.tradeDataUsd: 08.10.2019setyleDateUsd: 09.10.2019
+8-10-2019 10:19:22.tradeDataEur: 08.10.2019setyleDateEur: 09.10.2019
+8-10-2019 10:19:22.tradeDataGbp: setyleDateGbp: 
+8-10-2019 10:19:22.tradeDataEurUsd: 08.10.2019setyleDateEurUsd: 09.10.2019
+8-10-2019 10:19:22.tradeDataGbpUsd: setyleDateGbpUsd: 
+

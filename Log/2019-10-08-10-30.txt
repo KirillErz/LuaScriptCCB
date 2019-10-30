@@ -1,0 +1,5 @@
+8-10-2019 10:30:9.tradeDataUsd: 08.10.2019setyleDateUsd: 09.10.2019
+8-10-2019 10:30:9.tradeDataEur: 08.10.2019setyleDateEur: 09.10.2019
+8-10-2019 10:30:9.tradeDataGbp: 08.10.2019setyleDateGbp: 09.10.2019
+8-10-2019 10:30:9.tradeDataEurUsd: 08.10.2019setyleDateEurUsd: 09.10.2019
+8-10-2019 10:30:9.tradeDataGbpUsd: 08.10.2019setyleDateGbpUsd: 09.10.2019

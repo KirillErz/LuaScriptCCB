@@ -4,9 +4,11 @@ EXCHANGE_COMMISSION		= 0.000006 			-- Комиссия биржи 0.0006%
 COUNT_DAY_IN_YEAR		= 365 				-- Количество дней в году
 CLASS_CODE				= 'CNGD'			-- Код класса
 ACCOUNT					= 'MB0005605674'	-- Код счета
+ACCOUNT_DEPO		    = 'MB0005608694'	-- Код счета MB0005605674 MB0005608694
 PARTNER					= 'MC0005600000'	-- Код организации – партнера по РПС сделке 
 SETTLE_CODE				= 'T1'				-- Код расчетов при исполнении внебиржевых заявок
 TAG						= 'L'				-- ('L' - лимитированная, 'M' - рыночная)
+TAG_CURRENCYS			=  'EQTV'			-- Код класса для переноса (Код EQTV (у обычных клиентов RTOD))
 TRANSACTION_TYPE		= 'NEW_NEG_DEAL'	-- Тип транзакции РПС сделка не редактировать
 CLIENTCODE				= '12345'			-- Код клиента(донора)
 trans_id				= os.time()			-- ID транзакции*
@@ -318,6 +320,22 @@ FilterCurrency = function(Currencys)
 	return minusCurrency,plusCurrency
 end
 
+-- фнкция для получения данных из таблицы лимиты по бумагам.
+local getLimitsTableDepo = function(depo,client)            
+	local TableIndexLimitsTableDepo = SearchItems("depo_limits",0,getNumberOf("depo_limits")-1, 
+	function(trdaccid,client_code)
+		ToLog("Trdaccid: "..trdaccid.." "..depo.."Client_code: "..client_code.." "..client)
+		if (trdaccid == depo) and (client_code == client) then
+			ToLog("Trdaccid: "..trdaccid.."Client_code: "..client_code)   
+			return true; 
+		else 
+			return false; 
+		end 
+	end,"trdaccid,client_code");
+	return TableIndexLimitsTableDepo;
+end
+
+
  -- возвращается таблица (SUR,EUR,USD) если валюты нет то в таблице 0;
 local GetTableClient = function(currencies)
 	local TableSortCarrencis = {}; 
@@ -325,13 +343,23 @@ local GetTableClient = function(currencies)
 	for key,currency in pairs(currencies) do
 		ToLog("currency _"..currency);
 		local TableIndex = SearchItems("money_limits",0,getNumberOf("money_limits")-1, 
-		function(tag, currcode, limit_kind,currentbal) 
-			if (tag == 'RTOD') and (currcode == currency) and (limit_kind == 0) and (currentbal < 0) then  
-				return true; 
-			else 
+		function(tag, currcode, limit_kind,currentbal,client_code)
+			if (tag == "EQTV" and tag == TAG_CURRENCYS and currcode == currency and limit_kind == 0 and currentbal < 0) then
+				if getLimitsTableDepo(ACCOUNT_DEPO,client_code) ~= nil then  
+					return true;
+				else
+					return false;
+				end;
+			elseif (tag == "RTOD") then
+				if (tag == TAG_CURRENCYS) and (currcode == currency) and (limit_kind == 0) and (currentbal < 0) then  
+					return true; 
+				else 
+					return false; 
+				end;
+			else
 				return false; 
-			end 
-		end,"tag,currcode,limit_kind,currentbal");
+			end;
+		end,"tag,currcode,limit_kind,currentbal,client_code")
 		if TableIndex ~= nil then
 			for j =1, #TableIndex do 
 				ClientCode = getItem("money_limits",TableIndex[j]).client_code;
@@ -347,7 +375,7 @@ local GetTableClient = function(currencies)
 		for key,currency in  pairs(currencies) do
 			if key ~= nil and currency ~= nill then
 				ToLog("currencies _"..currency);
-				local optionsCurrency = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == 'RTOD') and (currcode == currency) and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");		
+				local optionsCurrency = SearchItems("money_limits",0,getNumberOf("money_limits")-1, function(tag, currcode, limit_kind,client_code) if (tag == TAG_CURRENCYS) and (currcode == currency) and (limit_kind == 0)  and (client_code == v)then  return true else return false end end, "tag,currcode,limit_kind,client_code");		
 				if optionsCurrency~= nil then
 					for k,va in pairs(optionsCurrency) do 
 						ToLog("currencies _"..va);
@@ -717,7 +745,7 @@ end;
 
 -- формирование  зявки на покупку/продажу волюты (своп)
 TransferOfPositionsCurrency = function(structParam)
-	local moneyDonarClient  =  getMoneyEx(getItem("money_limits",0).firmid,CLIENTCODE,'RTOD',structParam.minusCurrcode,0); -- Возвращает валюту 
+	local moneyDonarClient  =  getMoneyEx(getItem("money_limits",0).firmid,CLIENTCODE,TAG_CURRENCYS,structParam.minusCurrcode,0); -- Возвращает валюту 
 	if structParam.minusCurrcode == 'SUR'  then
 		--action должен Быть базовый курс
 		local int,double = mysplit(tostring(structParam.valueMinus),'.')
@@ -1032,17 +1060,24 @@ elseif Param.isToolOperation == true then
 	end 
 end
 
+chooseAccount = function(clientCode, donor,tagCurrencys,account)
+	local selectedAccount  = '';
+	if tagCurrencys == "EQTV" and clientCode ~= donor..'/SW' then 
+		selectedAccount = ACCOUNT_DEPO;
+	else
+		selectedAccount = account;
+	end; 
+	return selectedAccount;
+end;
 
 -- Запись транзакции.
 Transaction = function(T,Param)
-	local propertiTransaction = '' 	
+	local propertiTransaction = '';
+	local account = chooseAccount(T.CLIENT_CODE,CLIENTCODE,TAG_CURRENCYS,T.ACCOUNT);
 	if T.OPERATION == 'B' then 
-		propertiTransaction = tostring('TRANS_ID'.."="..T.TRANS_ID..";"..'CLASSCODE'.."="..T.CLASSCODE..";"..'ACTION'.."="..'Ввод адресной заявки'..";"..'Торговый счет'.."="..T.ACCOUNT..";"..'К/П'.."=".."Купля"..";"..'Режим'.."="..T.CLASSCODE..";"..'Инструмент'.."="..T.SECCODE..";"..'Контрагент'.."=".."MC0005600000"..";"..'Цена'.."="..T.PRICE..";"..'Лоты'.."="..T.QUANTITY..";"..'Примечание'.."="..T.CLIENT_CODE..";"..'Код расчетов'.."="..'T1'..";"..'Базовый курс'.."="..T.BASECURRENCY.."\n")
-		
-		
+		propertiTransaction = tostring('TRANS_ID'.."="..T.TRANS_ID..";"..'CLASSCODE'.."="..T.CLASSCODE..";"..'ACTION'.."="..'Ввод адресной заявки'..";"..'Торговый счет'.."="..account..";"..'К/П'.."=".."Купля"..";"..'Режим'.."="..T.CLASSCODE..";"..'Инструмент'.."="..T.SECCODE..";"..'Контрагент'.."=".."MC0005600000"..";"..'Цена'.."="..T.PRICE..";"..'Лоты'.."="..T.QUANTITY..";"..'Примечание'.."="..T.CLIENT_CODE..";"..'Код расчетов'.."="..'T1'..";"..'Базовый курс'.."="..T.BASECURRENCY.."\n")			
 	else	
-		propertiTransaction = tostring('TRANS_ID'.."="..T.TRANS_ID..";"..'CLASSCODE'.."="..T.CLASSCODE..";"..'ACTION'.."="..'Ввод адресной заявки'..";"..'Торговый счет'.."="..T.ACCOUNT..";"..'К/П'.."=".."Продажа"..";"..'Режим'.."="..T.CLASSCODE..";"..'Инструмент'.."="..T.SECCODE..";"..'Контрагент'.."=".."MC0005600000"..";"..'Цена'.."="..T.PRICE..";"..'Лоты'.."="..T.QUANTITY..";"..'Примечание'.."="..T.CLIENT_CODE..";"..'Код расчетов'.."="..'T1'..";"..'Базовый курс'.."="..T.BASECURRENCY.."\n")
-		
+		propertiTransaction = tostring('TRANS_ID'.."="..T.TRANS_ID..";"..'CLASSCODE'.."="..T.CLASSCODE..";"..'ACTION'.."="..'Ввод адресной заявки'..";"..'Торговый счет'.."="..account..";"..'К/П'.."=".."Продажа"..";"..'Режим'.."="..T.CLASSCODE..";"..'Инструмент'.."="..T.SECCODE..";"..'Контрагент'.."=".."MC0005600000"..";"..'Цена'.."="..T.PRICE..";"..'Лоты'.."="..T.QUANTITY..";"..'Примечание'.."="..T.CLIENT_CODE..";"..'Код расчетов'.."="..'T1'..";"..'Базовый курс'.."="..T.BASECURRENCY.."\n")		
 	end		
 		if T.CLIENT_CODE == CLIENTCODE..'/SW' then 
 			PocketInit('Donor')
